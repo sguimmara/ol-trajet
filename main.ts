@@ -118,14 +118,16 @@ const lineStyles = [
   new Style({
     stroke: new Stroke({
       width: 5,
+      lineDash: [10, 10],
       color: 'blue',
     })
   }),
   new Style({
     stroke: new Stroke({
       width: 2,
+      lineDash: [10, 10],
       color: 'white',
-    })
+    }),
   })
 ]
 
