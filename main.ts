@@ -13,19 +13,35 @@ import { Style, Circle, Fill, Stroke } from 'ol/style';
 import { buffer } from 'ol/extent';
 import { Coordinate } from 'ol/coordinate';
 import { FeatureLike } from 'ol/Feature';
+import TileWMS from 'ol/source/TileWMS';
+import WMTS, { Options, optionsFromCapabilities} from 'ol/source/WMTS.js';
+import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 
 proj4.defs("EPSG:31370","+proj=lcc +lat_0=90 +lon_0=4.36748666666667 +lat_1=51.1666672333333 +lat_2=49.8333339 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +towgs84=-106.8686,52.2978,-103.7239,-0.3366,0.457,-1.8422,-1.2747 +units=m +no_defs +type=crs");
 
 register(proj4);
 
+const wmtsCapabilitiesUrl = 'https://geoservices-urbis.irisnet.be/geoserver/gwc/service/wmts?REQUEST=GetCapabilities';
+
 const grandPlace = [148866.0, 170691.0];
 
+const osm = new TileLayer({
+  source: new OSM(),
+});
+
+const wmsLayer = new TileLayer({
+  source: new TileWMS({
+    projection: 'EPSG:31370',
+    url: 'https://geoservices-urbis.irisnet.be/geoserver/ows',
+    params: {
+      'LAYERS': 'urbisFR',
+      'SRS': 'EPSG:31370',
+    },
+  }),
+});
+
 const map = new Map({
-  layers: [
-    new TileLayer({
-      source: new OSM(),
-    }),
-  ],
+  layers: [osm],
   target: 'map',
   view: new View({
     projection: 'EPSG:31370',
@@ -33,6 +49,30 @@ const map = new Map({
     zoom: 2,
   }),
 });
+
+
+fetch(wmtsCapabilitiesUrl)
+  .then(response => {
+    return response.text();
+  }).then(text => {
+    const parser = new WMTSCapabilities();
+    const result = parser.read(text);
+    const layerName = 'urbisFR';
+    const tileMatrixSet = 'EPSG:31370';
+
+    const options = optionsFromCapabilities(result, {
+      layer: layerName,
+      matrixSet: tileMatrixSet
+    });
+
+    const wmtsSource = new WMTS(options as Options);
+
+    const wmtsLayer = new TileLayer({
+      source: wmtsSource
+    });
+
+    map.addLayer(wmtsLayer);
+  })
 
 function getColorFromStatus(status: number) {
   switch (status) {
