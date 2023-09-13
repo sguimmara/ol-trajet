@@ -1,13 +1,14 @@
 {
     "name": "simple",
     "dependencies": {
-      "ol": "8.1.0"
+        "@types/ol": "^7.0.0",
+        "ol": "8.1.0"
     },
     "devDependencies": {
-      "vite": "^3.2.3"
+        "vite": "^3.2.3"
     },
     "scripts": {
-      "start": "vite",
-      "build": "vite build"
+        "start": "vite",
+        "build": "vite build"
     }
-  }
+}
