@@ -118,8 +118,23 @@ const lineLayer = new VectorLayer({
   source: lineSource,
 });
 
+const vehicleSource = new VectorSource();
+
+const vehicleLayer = new VectorLayer({
+  source: vehicleSource,
+  style: new Style({
+    image: new Circle({
+      radius: 12,
+      fill: new Fill({
+        color: 'red',
+      })
+    })
+  })
+})
+
 map.addLayer(lineLayer);
 map.addLayer(pointLayer);
+map.addLayer(vehicleLayer);
 
 fetch('/ambulance1.json')
     .then(async response => {
@@ -156,6 +171,12 @@ fetch('/ambulance1.json')
 
         // On ajoute la ligne à la source
         lineSource.addFeature(trajet);
+
+        const vehicle = new Feature({
+          geometry: new Point(coordinates[0]),
+        });
+
+        vehicleSource.addFeature(vehicle);
 
         const extent = pointSource.getExtent();
         const bufferedExtent = buffer(extent, 500);
