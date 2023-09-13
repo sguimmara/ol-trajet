@@ -15,3 +15,9 @@ const map = new Map({
     zoom: 2,
   }),
 });
+
+fetch('/ambulance1.txt')
+    .then(async response => {
+        const data = await response.json();
+        console.log(data);
+    })
