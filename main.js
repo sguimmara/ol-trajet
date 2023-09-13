@@ -16,7 +16,7 @@ const map = new Map({
   }),
 });
 
-fetch('/ambulance1.txt')
+fetch('/ambulance1.json')
     .then(async response => {
         const data = await response.json();
         console.log(data);
