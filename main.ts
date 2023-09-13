@@ -9,7 +9,7 @@ import { LineString, Point } from 'ol/geom';
 import { Feature } from 'ol';
 import VectorSource from 'ol/source/Vector';
 import VectorLayer from 'ol/layer/Vector';
-import { Style, Circle, Fill, Stroke } from 'ol/style';
+import { Style, Circle, Fill, Stroke, Text } from 'ol/style';
 import { buffer } from 'ol/extent';
 import { Coordinate } from 'ol/coordinate';
 import { FeatureLike } from 'ol/Feature';
@@ -51,28 +51,28 @@ const map = new Map({
 });
 
 
-fetch(wmtsCapabilitiesUrl)
-  .then(response => {
-    return response.text();
-  }).then(text => {
-    const parser = new WMTSCapabilities();
-    const result = parser.read(text);
-    const layerName = 'urbisFR';
-    const tileMatrixSet = 'EPSG:31370';
+// fetch(wmtsCapabilitiesUrl)
+//   .then(response => {
+//     return response.text();
+//   }).then(text => {
+//     const parser = new WMTSCapabilities();
+//     const result = parser.read(text);
+//     const layerName = 'urbisFR';
+//     const tileMatrixSet = 'EPSG:31370';
 
-    const options = optionsFromCapabilities(result, {
-      layer: layerName,
-      matrixSet: tileMatrixSet
-    });
+//     const options = optionsFromCapabilities(result, {
+//       layer: layerName,
+//       matrixSet: tileMatrixSet
+//     });
 
-    const wmtsSource = new WMTS(options as Options);
+//     const wmtsSource = new WMTS(options as Options);
 
-    const wmtsLayer = new TileLayer({
-      source: wmtsSource
-    });
+//     const wmtsLayer = new TileLayer({
+//       source: wmtsSource
+//     });
 
-    map.addLayer(wmtsLayer);
-  })
+//     map.addLayer(wmtsLayer);
+//   })
 
 function getColorFromStatus(status: number) {
   switch (status) {
@@ -83,7 +83,7 @@ function getColorFromStatus(status: number) {
     case 4: return 'cyan';
     case 5: return 'gray';
     case 6: return 'white';
-    case 7: return 'black';
+    case 7: return 'purple';
   }
 }
 
@@ -114,33 +114,101 @@ const pointLayer = new VectorLayer({
 
 const lineSource = new VectorSource();
 
+const lineStyles = [
+  new Style({
+    stroke: new Stroke({
+      width: 5,
+      color: 'blue',
+    })
+  }),
+  new Style({
+    stroke: new Stroke({
+      width: 2,
+      color: 'white',
+    })
+  })
+]
+
 const lineLayer = new VectorLayer({
   source: lineSource,
+  style: lineStyles,
 });
 
 const vehicleSource = new VectorSource();
 
+const statusTexts = [
+  'call',
+  'alarm',
+  'departure',
+  'arrival',
+  'dep.hosp.',
+  'arr.hosp.',
+  'return',
+  'garage'
+]
+
 const vehicleLayer = new VectorLayer({
   source: vehicleSource,
-  style: new Style({
+  style: (feature) => new Style({
+    text: new Text({
+      text: `status: ${statusTexts[feature.get('status')]}\nspeed: ${feature.get('speed')} km/h`,
+      scale: 2,
+      offsetX: 30,
+      textAlign: 'start',
+      stroke: new Stroke({
+        color: 'white',
+        width: 2,
+      })
+    }),
     image: new Circle({
-      radius: 12,
+      radius: 10,
       fill: new Fill({
-        color: 'red',
+        color: getColorFromStatus(feature.get('status')),
+      }),
+      stroke: new Stroke({
+        color: 'black',
+        width: 2,
       })
     })
   })
 })
 
 map.addLayer(lineLayer);
-map.addLayer(pointLayer);
+// map.addLayer(pointLayer);
 map.addLayer(vehicleLayer);
+
+function moveVehicle(feature: Feature, features: Feature[]) {
+  const interval = 100;
+  let index = 0;
+  let now = performance.now();
+
+  function update() {
+    const now2 = performance.now();
+
+    if (now2 - now >= 300) {
+      const currentFeature = features[index];
+      const currentPoint = currentFeature.getGeometry() as Point;
+      const coordinate = currentPoint.getFirstCoordinate();
+      index++;
+      const point = feature.getGeometry() as Point;
+      point.setCoordinates(coordinate);
+      feature.set('speed', currentFeature.get('speed'));
+      feature.set('status', currentFeature.get('status'));
+      now = now2;
+    }
+
+    requestAnimationFrame(update);
+  }
+
+  requestAnimationFrame(update);
+}
 
 fetch('/ambulance1.json')
     .then(async response => {
         const file = await response.json();
         const data = file.data;
         const coordinates: Coordinate[] = [];
+        const pointFeatures: Feature[] = [];
 
         for (const item of data) {
           const x = Number.parseFloat(item.x);
@@ -153,8 +221,8 @@ fetch('/ambulance1.json')
           // "status": "2",
           // "speed": "0"
 
-          const speed = item.speed;
-          const status = item.status;
+          const speed = Number.parseFloat(item.speed);
+          const status = Number.parseInt(item.status);
           const timedate = item.timedate;
 
           const ambulanceFeature = new Feature({ geometry: ambulancePoint });
@@ -164,6 +232,7 @@ fetch('/ambulance1.json')
           ambulanceFeature.set('timedate', timedate);
 
           pointSource.addFeature(ambulanceFeature);
+          pointFeatures.push(ambulanceFeature);
         }
 
         const polyLine = new LineString(coordinates);
@@ -182,4 +251,6 @@ fetch('/ambulance1.json')
         const bufferedExtent = buffer(extent, 500);
 
         map.getView().fit(bufferedExtent);
+
+        moveVehicle(vehicle, pointFeatures);
     })
