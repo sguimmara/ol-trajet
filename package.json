@@ -1,11 +1,11 @@
 {
     "name": "simple",
     "dependencies": {
-        "@types/ol": "^7.0.0",
         "ol": "8.1.0",
         "proj4": "^2.9.0"
     },
     "devDependencies": {
+        "@types/ol": "^7.0.0",
         "vite": "^3.2.3"
     },
     "scripts": {
