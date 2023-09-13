@@ -16,6 +16,8 @@ const map = new Map({
   }),
 });
 
+map.getLayers()
+
 fetch('/ambulance1.json')
     .then(async response => {
         const data = await response.json();
