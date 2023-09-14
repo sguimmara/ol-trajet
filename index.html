@@ -24,6 +24,13 @@
             border-style: solid;
             border-width: 1px;
         }
+
+        .export-button {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            margin: 30px;
+        }
     </style>
 </head>
 
@@ -33,6 +40,7 @@
         <a id="link" href="#"></a>
     </div> -->
     <div id="map" class="map"></div>
+    <button id="export" class="export-button">Exporter en GeoJSON</button>
     <script type="module" src="export-to-geojson.ts"></script>
 </body>
 
