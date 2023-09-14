@@ -6,7 +6,7 @@ import TileLayer from 'ol/layer/Tile.js';
 import View from 'ol/View.js';
 import { register } from 'ol/proj/proj4';
 import { LineString, Point } from 'ol/geom';
-import { Feature } from 'ol';
+import { Feature, Overlay } from 'ol';
 import VectorSource from 'ol/source/Vector';
 import VectorLayer from 'ol/layer/Vector';
 import { Style, Circle, Fill, Stroke, Text } from 'ol/style';
@@ -16,6 +16,7 @@ import { FeatureLike } from 'ol/Feature';
 import TileWMS from 'ol/source/TileWMS';
 import WMTS, { Options, optionsFromCapabilities} from 'ol/source/WMTS.js';
 import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
+import Modify from 'ol/interaction/Modify';
 
 proj4.defs("EPSG:31370","+proj=lcc +lat_0=90 +lon_0=4.36748666666667 +lat_1=51.1666672333333 +lat_2=49.8333339 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +towgs84=-106.8686,52.2978,-103.7239,-0.3366,0.457,-1.8422,-1.2747 +units=m +no_defs +type=crs");
 
@@ -118,14 +119,12 @@ const lineStyles = [
   new Style({
     stroke: new Stroke({
       width: 5,
-      lineDash: [10, 10],
       color: 'blue',
     })
   }),
   new Style({
     stroke: new Stroke({
       width: 2,
-      lineDash: [10, 10],
       color: 'white',
     }),
   })
@@ -175,8 +174,55 @@ const vehicleLayer = new VectorLayer({
   })
 })
 
+function getColorFromSpeed(speed: number) {
+  if (speed === 0) {
+    return 'red';
+  }
+  if (speed < 15) {
+    return 'orange';
+  }
+  if (speed < 20) {
+    return 'yellow';
+  }
+  return 'green';
+}
+
+const lineSegmentSource = new VectorSource();
+
+function getLineSegmentStyle(feature: Feature) {
+  const styles: Style[] = [];
+
+  const colorSegment = new Style({
+    stroke: new Stroke({
+      color: getColorFromSpeed(feature.get('speed')),
+      width: 4,
+    })
+  });
+
+  styles.push(colorSegment);
+
+  if (feature.get('selected')) {
+    const selectedSegment = new Style({
+      stroke: new Stroke({
+        width: 10,
+        color: 'cyan',
+      }),
+    });
+
+    styles.push(selectedSegment);
+  }
+
+  return styles;
+}
+
+const lineSegmentLayer = new VectorLayer({
+  source: lineSegmentSource,
+  style: getLineSegmentStyle,
+});
+
 map.addLayer(lineLayer);
 // map.addLayer(pointLayer);
+// map.addLayer(lineSegmentLayer);
 map.addLayer(vehicleLayer);
 
 function moveVehicle(feature: Feature, features: Feature[]) {
@@ -212,9 +258,26 @@ fetch('/ambulance1.json')
         const coordinates: Coordinate[] = [];
         const pointFeatures: Feature[] = [];
 
-        for (const item of data) {
+        let previousX = null;
+        let previousY = null;
+
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+
           const x = Number.parseFloat(item.x);
           const y = Number.parseFloat(item.y);
+
+          if (previousX != null
+            && x === previousX
+            && previousY != null
+            && y === previousY) {
+              previousX = x;
+              previousY = y;
+            continue;
+          }
+
+          previousX = x;
+          previousY = y;
 
           coordinates.push([x, y]);
           const ambulancePoint = new Point([x, y]);
@@ -227,6 +290,10 @@ fetch('/ambulance1.json')
           const status = Number.parseInt(item.status);
           const timedate = item.timedate;
 
+          if (speed <= 0) {
+            continue;
+          }
+
           const ambulanceFeature = new Feature({ geometry: ambulancePoint });
 
           ambulanceFeature.set('speed', speed);
@@ -235,6 +302,28 @@ fetch('/ambulance1.json')
 
           pointSource.addFeature(ambulanceFeature);
           pointFeatures.push(ambulanceFeature);
+
+          if (i < data.length - 1) {
+            const next = data[i + 1];
+
+            const x2 = Number.parseFloat(next.x);
+            const y2 = Number.parseFloat(next.y);
+
+            const segment = new LineString([
+              [x, y],
+              [x2, y2],
+            ]);
+
+            const speed2 = Number.parseFloat(next.speed);
+
+            const segmentFeature = new Feature({ geometry: segment });
+
+            const averageSpeed = Math.max(speed, speed2);
+
+            segmentFeature.set('speed', averageSpeed);
+
+            lineSegmentSource.addFeature(segmentFeature);
+          }
         }
 
         const polyLine = new LineString(coordinates);
@@ -253,6 +342,67 @@ fetch('/ambulance1.json')
         const bufferedExtent = buffer(extent, 500);
 
         map.getView().fit(bufferedExtent);
+
+        const overlay = new Overlay({
+          element: document.getElementById('segment-overlay') as HTMLElement,
+        })
+
+        map.addOverlay(overlay);
+
+        function onClick(event) {
+            const feature = lineSegmentSource.getClosestFeatureToCoordinate(event.coordinate);
+            lineSegmentSource.forEachFeature(f => {
+              f.set('selected', false, true);
+            })
+            if (feature) {
+              const x = event.coordinate[0];
+              const y = event.coordinate[1];
+
+              const closest = feature.getGeometry()?.getClosestPoint(event.coordinate) as Coordinate;
+
+              const x2 = closest[0];
+              const y2 = closest[1];
+
+              const xDist = x2 - x;
+              const yDist = y2 - y;
+              const distance = Math.sqrt(xDist * xDist + yDist * yDist);
+
+              if (distance <= 100) {
+                feature.set('selected', true, true);
+                overlay.setPosition(event.coordinate);
+                const overlayElement = overlay.getElement();
+
+                overlayElement.children[0].innerText = `speed: ${feature.get('speed')} km/h`;
+                overlayElement.children[1].innerText = `http://belgique.com`;
+              } else {
+                overlay.setPosition(undefined);
+              }
+            }
+
+            lineSegmentLayer.changed();
+        }
+
+        lineSegmentSource.on('changefeature', () => console.log('change'));
+
+        map.on('click', onClick);
+
+        function getEditionPointStyle(feature) {
+        }
+
+        const modify = new Modify({
+          source: lineSource,
+          insertVertexCondition: () => false,
+          style: (feature) => new Style({
+            image: new Circle({
+              radius: 20,
+              fill: new Fill({
+                color: 'red',
+              })
+            })
+          })
+        });
+
+        map.addInteraction(modify);
 
         moveVehicle(vehicle, pointFeatures);
     })
