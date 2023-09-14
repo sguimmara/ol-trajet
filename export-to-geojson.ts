@@ -1,66 +1,23 @@
-import { Feature, Map, View } from "ol";
-import TileLayer from "ol/layer/Tile";
-import { fromLonLat } from "ol/proj";
-import OSM from 'ol/source/OSM';
-import Draw from 'ol/interaction/Draw';
 import VectorSource from "ol/source/Vector";
-import VectorLayer from "ol/layer/Vector";
-import { Circle, Fill, Stroke, Style } from "ol/style";
-import GeoJSON from 'ol/format/GeoJSON';
-
-const osm = new TileLayer({
-    source: new OSM(),
-});
-
-const map = new Map({
-    layers: [osm],
-    target: "map",
-    view: new View({
-        center: fromLonLat([4.3525, 50.846667]),
-        zoom: 15,
-    })
-})
+import * as exporter from "./exporter";
+import * as mapService from './mapService';
 
 const source = new VectorSource();
 
-const vectorLayer = new VectorLayer({
-    source,
-    style: new Style({
-        image: new Circle({
-            radius: 10,
-            fill: new Fill({
-                color: 'red',
-            }),
-            stroke: new Stroke({
-                color: 'black',
-            })
-        })
-    })
-});
+mapService.addCircleVectorLayer(source);
 
-map.addLayer(vectorLayer);
+mapService.addDrawInteraction(source, 'Point');
 
-const draw = new Draw({
-    type: 'Point',
-    source,
-})
+// const button = document.getElementById('export') as HTMLButtonElement;
 
-map.addInteraction(draw);
+// const canvas = document.getElementsByTagName('canvas').item(0) as HTMLCanvasElement;
 
-const button = document.getElementById('export') as HTMLButtonElement;
+// const context = canvas?.getContext('2d');
 
-button.onclick = function exportFeatures() {
-    const encoder = new GeoJSON({
-        featureProjection: 'EPSG:3857',
-        dataProjection: 'EPSG:4326',
-    });
+// const imageData = context?.getImageData(0, 0, canvas.width, canvas.height) as ImageData;
 
-    const geojson = encoder.writeFeatures(source.getFeatures());
+// createImageBitmap(imageData).then(image => {
+//     const htmlImage = new Image(image.width, image.height);
+// })
 
-    console.log(geojson);
-
-    fetch('http://belgique.com', {
-        method: 'POST',
-        body: new TextEncoder().encode(geojson),
-    })
-}
+// button.onclick = () => exporter.exportFeatures(source, 'http://belgique.com');
